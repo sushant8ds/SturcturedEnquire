@@ -195,8 +195,6 @@ router.post('/addSalary', async (req, res) => {
   }
 });
 
-module.exports = router;
-
 /**
  * GET /salaries
  * 
@@ -367,6 +365,67 @@ router.get('/salaries/:id', async (req, res) => {
 });
 
 /**
+ * DELETE /salaries/:id
+ * 
+ * Deletes a specific salary record by ID
+ * 
+ * Parameters:
+ * - id: MongoDB ObjectId of the salary record to delete
+ * 
+ * Response:
+ * - 200: Successfully deleted record
+ * - 400: Invalid ID format
+ * - 404: Record not found
+ * - 500: Server error
+ */
+router.delete('/salaries/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validate ObjectId format
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({
+        error: 'Invalid ID format. Must be a valid MongoDB ObjectId',
+        field: 'id'
+      });
+    }
+
+    // Find the record first to get details for response
+    const salaryRecord = await SalaryRecord.findById(id);
+
+    if (!salaryRecord) {
+      return res.status(404).json({
+        error: 'Salary record not found',
+        id: id
+      });
+    }
+
+    // Delete the record
+    await SalaryRecord.findByIdAndDelete(id);
+
+    res.json({
+      message: 'Salary record deleted successfully',
+      deletedRecord: {
+        id: salaryRecord._id,
+        employeeId: salaryRecord.employeeId,
+        employeeName: salaryRecord.employeeName,
+        month: salaryRecord.month,
+        year: salaryRecord.year,
+        totalMonthlySalary: salaryRecord.totalMonthlySalary,
+        deletedAt: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('Error deleting salary record:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: 'An unexpected error occurred while deleting the salary record'
+    });
+  }
+});
+
+/**
  * GET /employees/:employeeId/salaries
  * 
  * Retrieves all salary records for a specific employee
@@ -457,3 +516,5 @@ router.get('/employees/:employeeId/salaries', async (req, res) => {
     });
   }
 });
+
+module.exports = router;

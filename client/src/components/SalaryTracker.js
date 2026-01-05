@@ -36,6 +36,17 @@ const SalaryTracker = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // State for theme toggle (day/night mode)
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // State for delete confirmation modal
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    recordId: null,
+    employeeName: '',
+    isDeleting: false
+  });
+
   // Month options for dropdown
   const months = [
     { value: 1, name: 'January' },
@@ -55,6 +66,11 @@ const SalaryTracker = () => {
   // Load existing salary records on component mount
   useEffect(() => {
     fetchSalaryRecords();
+    // Load theme preference from localStorage
+    const savedTheme = localStorage.getItem('salaryTrackerTheme');
+    if (savedTheme === 'dark') {
+      setIsDarkMode(true);
+    }
   }, []);
 
   // Real-time calculation when salary amounts change
@@ -196,6 +212,67 @@ const SalaryTracker = () => {
   };
 
   /**
+   * Toggle between day and night mode
+   */
+  const toggleTheme = () => {
+    const newTheme = !isDarkMode;
+    setIsDarkMode(newTheme);
+    localStorage.setItem('salaryTrackerTheme', newTheme ? 'dark' : 'light');
+  };
+
+  /**
+   * Open delete confirmation modal
+   */
+  const openDeleteModal = (record) => {
+    setDeleteModal({
+      isOpen: true,
+      recordId: record._id,
+      employeeName: record.employeeName,
+      isDeleting: false
+    });
+  };
+
+  /**
+   * Close delete confirmation modal
+   */
+  const closeDeleteModal = () => {
+    setDeleteModal({
+      isOpen: false,
+      recordId: null,
+      employeeName: '',
+      isDeleting: false
+    });
+  };
+
+  /**
+   * Delete salary record
+   */
+  const deleteSalaryRecord = async () => {
+    try {
+      setDeleteModal(prev => ({ ...prev, isDeleting: true }));
+      setError(''); // Clear any previous errors
+      
+      console.log('Deleting record with ID:', deleteModal.recordId);
+      
+      const response = await axios.delete(`/api/salaries/${deleteModal.recordId}`);
+      
+      console.log('Delete response:', response.data);
+      
+      // Remove the deleted record from local state
+      setSalaryRecords(prev => prev.filter(record => record._id !== deleteModal.recordId));
+      
+      setSuccess(`Salary record for ${deleteModal.employeeName} deleted successfully!`);
+      closeDeleteModal();
+      
+    } catch (err) {
+      console.error('Delete error:', err);
+      const errorMessage = err.response?.data?.error || 'Failed to delete salary record';
+      setError(errorMessage);
+      setDeleteModal(prev => ({ ...prev, isDeleting: false }));
+    }
+  };
+
+  /**
    * Format currency for display
    */
   const formatCurrency = (amount) => {
@@ -233,10 +310,24 @@ const SalaryTracker = () => {
   };
 
   return (
-    <div className="salary-tracker">
+    <div className={`salary-tracker ${isDarkMode ? 'dark-theme' : 'light-theme'}`}>
       <header className="salary-tracker-header">
-        <h1>Salary Tracker Management System</h1>
-        <p>Track employee salaries, advance payments, and payment status in Indian Rupees (₹)</p>
+        <div className="header-content">
+          <div className="header-text">
+            <h1>💰 Salary Tracker Management System</h1>
+            <p>Track employee salaries, advance payments, and payment status (₹)</p>
+          </div>
+          <div className="theme-toggle">
+            <button 
+              onClick={toggleTheme} 
+              className="theme-toggle-btn"
+              title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            >
+              {isDarkMode ? '☀️' : '🌙'}
+              <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
+            </button>
+          </div>
+        </div>
       </header>
 
       {/* Add New Salary Record Form */}
@@ -406,6 +497,7 @@ const SalaryTracker = () => {
                   <th>Remaining</th>
                   <th>Status</th>
                   <th>Payment Date</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -439,6 +531,16 @@ const SalaryTracker = () => {
                     <td>
                       {formatDate(record.paymentDate)}
                     </td>
+                    <td>
+                      <button
+                        onClick={() => openDeleteModal(record)}
+                        className="delete-btn"
+                        title={`Delete salary record for ${record.employeeName}`}
+                        disabled={loading}
+                      >
+                        🗑️ Delete
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -446,6 +548,40 @@ const SalaryTracker = () => {
           </div>
         )}
       </section>
+
+      {/* Delete Confirmation Modal */}
+      {deleteModal.isOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>🗑️ Confirm Delete</h3>
+            </div>
+            <div className="modal-body">
+              <p>Are you sure you want to delete the salary record for:</p>
+              <div className="delete-employee-info">
+                <strong>{deleteModal.employeeName}</strong>
+              </div>
+              <p className="warning-text">⚠️ This action cannot be undone!</p>
+            </div>
+            <div className="modal-actions">
+              <button
+                onClick={closeDeleteModal}
+                className="cancel-btn"
+                disabled={deleteModal.isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteSalaryRecord}
+                className="confirm-delete-btn"
+                disabled={deleteModal.isDeleting}
+              >
+                {deleteModal.isDeleting ? 'Deleting...' : 'Delete Record'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
